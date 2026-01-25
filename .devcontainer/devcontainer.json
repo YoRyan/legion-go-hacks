@@ -15,7 +15,11 @@
 	// ]
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
+	"features": {
+		"ghcr.io/devcontainers-extra/features/apt-packages:1": {
+			"packages": "libdbus-1-dev,libudev-dev"
+		}
+	}
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
