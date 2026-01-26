@@ -4,7 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 use dbus_crossroads::Crossroads;
-use evdev::{AttributeSet, BusType, KeyCode, SwitchCode};
+use evdev::{AttributeSet, BusType, EventType, InputEvent, KeyCode, SwitchCode};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -208,8 +208,8 @@ fn run_virtual_device() -> Result<()> {
         .with_switches(&switches)?
         .build()?;
     device.emit(&[evdev::InputEvent::new(
-        evdev::EventType::SWITCH.0,
-        evdev::SwitchCode::SW_TABLET_MODE.0,
+        EventType::SWITCH.0,
+        SwitchCode::SW_TABLET_MODE.0,
         1,
     )])?;
 
@@ -217,11 +217,7 @@ fn run_virtual_device() -> Result<()> {
         for event in internal_keyboard.fetch_events()? {
             let code = event.code();
             if forward_codes.contains(&code) {
-                device.emit(&[evdev::InputEvent::new(
-                    evdev::EventType::KEY.0,
-                    code,
-                    event.value(),
-                )])?;
+                device.emit(&[InputEvent::new(EventType::KEY.0, code, event.value())])?;
             }
         }
     }
