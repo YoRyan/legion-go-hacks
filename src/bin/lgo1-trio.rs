@@ -65,6 +65,41 @@ where
     })
 }
 
+fn run_virtual_device() -> Result<()> {
+    const FORWARD_KEYS: [KeyCode; 2] = [KeyCode::KEY_VOLUMEDOWN, KeyCode::KEY_VOLUMEUP];
+    let forward_codes: HashSet<u16> = FORWARD_KEYS.iter().map(|k| k.0).collect();
+
+    let mut internal_keyboard = evdev::enumerate()
+        .map(|(_, d)| d)
+        .find(|d| {
+            let id = d.input_id();
+            id.bus_type() == BusType::BUS_I8042 && id.vendor() == 0x1 && id.product() == 0x1
+        })
+        .ok_or("could not find internal keyboard")?;
+
+    let keys = AttributeSet::<KeyCode>::from_iter(FORWARD_KEYS.iter());
+    let switches = AttributeSet::<SwitchCode>::from_iter([SwitchCode::SW_TABLET_MODE]);
+    let mut device = evdev::uinput::VirtualDevice::builder()?
+        .name("lgo1-trio virtual input device")
+        .with_keys(&keys)?
+        .with_switches(&switches)?
+        .build()?;
+    device.emit(&[evdev::InputEvent::new(
+        EventType::SWITCH.0,
+        SwitchCode::SW_TABLET_MODE.0,
+        1,
+    )])?;
+
+    loop {
+        for event in internal_keyboard.fetch_events()? {
+            let code = event.code();
+            if forward_codes.contains(&code) {
+                device.emit(&[InputEvent::new(EventType::KEY.0, code, event.value())])?;
+            }
+        }
+    }
+}
+
 fn make_dbus_crossroads() -> Crossroads {
     let mut cr = Crossroads::new();
     let iface_token = cr.register(
@@ -226,41 +261,6 @@ fn run_dbus(cr: Arc<Mutex<Crossroads>>, to_send: Arc<Mutex<ChangedPropsQueue>>) 
                     ),
                 )
                 .map_err(|_| "failed to send properties changed message")?;
-            }
-        }
-    }
-}
-
-fn run_virtual_device() -> Result<()> {
-    const FORWARD_KEYS: [KeyCode; 2] = [KeyCode::KEY_VOLUMEDOWN, KeyCode::KEY_VOLUMEUP];
-    let forward_codes: HashSet<u16> = FORWARD_KEYS.iter().map(|k| k.0).collect();
-
-    let mut internal_keyboard = evdev::enumerate()
-        .map(|(_, d)| d)
-        .find(|d| {
-            let id = d.input_id();
-            id.bus_type() == BusType::BUS_I8042 && id.vendor() == 0x1 && id.product() == 0x1
-        })
-        .ok_or("could not find internal keyboard")?;
-
-    let keys = AttributeSet::<KeyCode>::from_iter(FORWARD_KEYS.iter());
-    let switches = AttributeSet::<SwitchCode>::from_iter([SwitchCode::SW_TABLET_MODE]);
-    let mut device = evdev::uinput::VirtualDevice::builder()?
-        .name("lgo1-trio virtual input device")
-        .with_keys(&keys)?
-        .with_switches(&switches)?
-        .build()?;
-    device.emit(&[evdev::InputEvent::new(
-        EventType::SWITCH.0,
-        SwitchCode::SW_TABLET_MODE.0,
-        1,
-    )])?;
-
-    loop {
-        for event in internal_keyboard.fetch_events()? {
-            let code = event.code();
-            if forward_codes.contains(&code) {
-                device.emit(&[InputEvent::new(EventType::KEY.0, code, event.value())])?;
             }
         }
     }
