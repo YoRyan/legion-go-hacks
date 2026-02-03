@@ -41,9 +41,9 @@ fn main() {
     let cpq = Arc::new(Mutex::new(VecDeque::<ChangedProps>::new()));
     let cpq2 = cpq.clone();
     spawn_loop("read_keyboard_status", move || {
-        read_keyboard_status(dbus_cr2.clone(), &udev_r, cpq2.clone())
+        read_keyboard_status(dbus_cr.clone(), &udev_r, cpq.clone())
     });
-    let _ = spawn_loop("run_dbus", move || run_dbus(dbus_cr.clone(), cpq.clone())).join();
+    let _ = spawn_loop("run_dbus", move || run_dbus(dbus_cr2.clone(), cpq2.clone())).join();
 
     unreachable!();
 }
