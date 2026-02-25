@@ -20,8 +20,8 @@ enum KeyboardStatus {
     None = 0x0,
 }
 impl KeyboardStatus {
-    fn from_u32(value: u32) -> KeyboardStatus {
-        match value {
+    fn from_atomic(atomic: &AtomicU32) -> KeyboardStatus {
+        match atomic.load(Ordering::Relaxed) {
             0x2 => KeyboardStatus::CaseExternal,
             0x1 => KeyboardStatus::AnyExternal,
             0x0 | _ => KeyboardStatus::None,
@@ -240,7 +240,7 @@ fn run_dbus(atomic_status: Arc<AtomicU32>) -> Result<()> {
     loop {
         conn.process(Duration::from_millis(100))?;
 
-        let status = KeyboardStatus::from_u32(atomic_status.load(Ordering::Relaxed));
+        let status = KeyboardStatus::from_atomic(&atomic_status);
         if last_status.is_none_or(|s| s != status) {
             let mut changed_props = dbus_arg::PropMap::new();
             changed_props.insert(
@@ -280,8 +280,7 @@ fn make_crossroads(atomic_status: Arc<AtomicU32>) -> Crossroads {
                 Ok(status_value)
             });
             b.property("TabletMode").get(|_, obj| {
-                let status_value = obj.load(Ordering::Relaxed);
-                let tablet_mode = KeyboardStatus::from_u32(status_value).is_tablet_mode();
+                let tablet_mode = KeyboardStatus::from_atomic(obj).is_tablet_mode();
                 Ok(tablet_mode)
             });
         },
