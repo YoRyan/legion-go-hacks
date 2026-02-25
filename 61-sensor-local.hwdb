@@ -1,5 +1,5 @@
 # udev includes a matrix for the Go that assumes a display rotated from portrait
 # to landscape. Gnome will rotate the display for us so we don't want to do
 # anything to the values.
-sensor:modalias:platform:HID-SENSOR-2000*:dmi:*svnLENOVO:pn83E1:*
+sensor:modalias:platform:HID-SENSOR-200073:dmi:*:svnLENOVO:pn83E1:*
  ACCEL_MOUNT_MATRIX=1, 0, 0; 0, 1, 0; 0, 0, 1
