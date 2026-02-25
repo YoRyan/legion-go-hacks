@@ -19,13 +19,18 @@ enum KeyboardStatus {
     /// No external keyboard is connected.
     None = 0x0,
 }
+
 impl KeyboardStatus {
-    fn from_atomic(atomic: &AtomicU32) -> KeyboardStatus {
+    fn load_atomic(atomic: &AtomicU32) -> KeyboardStatus {
         match atomic.load(Ordering::Relaxed) {
             0x2 => KeyboardStatus::CaseExternal,
             0x1 => KeyboardStatus::AnyExternal,
             0x0 | _ => KeyboardStatus::None,
         }
+    }
+
+    fn store_atomic(&self, atomic: &AtomicU32) {
+        atomic.store(*self as u32, Ordering::Relaxed)
     }
 
     fn is_tablet_mode(&self) -> bool {
@@ -38,7 +43,7 @@ const DBUS_INTERFACE: &str = "com.youngryan.LGo1Trio";
 const FORWARD_KEYS: [KeyCode; 2] = [KeyCode::KEY_VOLUMEDOWN, KeyCode::KEY_VOLUMEUP];
 
 fn main() {
-    let atomic_status = Arc::new(AtomicU32::new(0x0));
+    let atomic_status = Arc::new(AtomicU32::new(KeyboardStatus::None as u32));
     let atomic_status2 = atomic_status.clone();
 
     // (We pass references and Arc clones make the functions callable multiple
@@ -174,7 +179,7 @@ fn read_keyboard_status(
             SwitchCode::SW_TABLET_MODE.0,
             status.is_tablet_mode() as i32,
         ))?;
-        atomic_status.store(status as u32, Ordering::Relaxed);
+        status.store_atomic(&atomic_status);
 
         // Wait for an update, but also force a recheck every now and then.
         match udev_add_remove.recv_timeout(Duration::from_secs(120)) {
@@ -240,7 +245,7 @@ fn run_dbus(atomic_status: Arc<AtomicU32>) -> Result<()> {
     loop {
         conn.process(Duration::from_millis(100))?;
 
-        let status = KeyboardStatus::from_atomic(&atomic_status);
+        let status = KeyboardStatus::load_atomic(&atomic_status);
         if last_status.is_none_or(|s| s != status) {
             let mut changed_props = dbus_arg::PropMap::new();
             changed_props.insert(
@@ -276,11 +281,11 @@ fn make_crossroads(atomic_status: Arc<AtomicU32>) -> Crossroads {
         DBUS_INTERFACE,
         |b: &mut dbus_crossroads::IfaceBuilder<Arc<AtomicU32>>| {
             b.property("KeyboardStatus").get(|_, obj| {
-                let status_value = obj.load(Ordering::Relaxed);
-                Ok(status_value)
+                let status = KeyboardStatus::load_atomic(obj);
+                Ok(status as u32)
             });
             b.property("TabletMode").get(|_, obj| {
-                let tablet_mode = KeyboardStatus::from_atomic(obj).is_tablet_mode();
+                let tablet_mode = KeyboardStatus::load_atomic(obj).is_tablet_mode();
                 Ok(tablet_mode)
             });
         },
