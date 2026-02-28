@@ -45,6 +45,7 @@ const FORWARD_KEYS: [KeyCode; 2] = [KeyCode::KEY_VOLUMEDOWN, KeyCode::KEY_VOLUME
 fn main() {
     let atomic_status = Arc::new(AtomicU32::new(KeyboardStatus::None as u32));
     let atomic_status2 = atomic_status.clone();
+    let atomic_status3 = atomic_status.clone();
 
     // (We pass references and Arc clones make the functions callable multiple
     // times.)
@@ -54,7 +55,9 @@ fn main() {
     spawn_loop("read_suppressed_keyboard", move || {
         read_suppressed_keyboard(&virtual_s)
     });
-    spawn_loop("run_virtual_device", move || run_virtual_device(&virtual_r));
+    spawn_loop("run_virtual_device", move || {
+        run_virtual_device(&virtual_r, atomic_status2.clone())
+    });
 
     let (udev_s, udev_r) = mpsc::sync_channel::<()>(0);
     spawn_loop("read_udev_add_remove", move || {
@@ -63,7 +66,7 @@ fn main() {
     spawn_loop("read_keyboard_status", move || {
         read_keyboard_status(&udev_r, &virtual_s2, atomic_status.clone())
     });
-    let _ = spawn_loop("run_dbus", move || run_dbus(atomic_status2.clone())).join();
+    let _ = spawn_loop("run_dbus", move || run_dbus(atomic_status3.clone())).join();
 
     unreachable!();
 }
@@ -106,7 +109,10 @@ fn read_suppressed_keyboard(consumer: &mpsc::Sender<InputEvent>) -> Result<()> {
     }
 }
 
-fn run_virtual_device(event_stream: &mpsc::Receiver<InputEvent>) -> Result<()> {
+fn run_virtual_device(
+    event_stream: &mpsc::Receiver<InputEvent>,
+    atomic_status: Arc<AtomicU32>,
+) -> Result<()> {
     let keys = AttributeSet::<KeyCode>::from_iter(FORWARD_KEYS.iter());
     let switches = AttributeSet::<SwitchCode>::from_iter([SwitchCode::SW_TABLET_MODE]);
     let mut device = evdev::uinput::VirtualDevice::builder()?
@@ -122,7 +128,9 @@ fn run_virtual_device(event_stream: &mpsc::Receiver<InputEvent>) -> Result<()> {
 
     loop {
         let event = event_stream.recv()?;
-        device.emit(&[event])?;
+        if KeyboardStatus::load_atomic(&atomic_status).is_tablet_mode() {
+            device.emit(&[event])?;
+        }
     }
 }
 
