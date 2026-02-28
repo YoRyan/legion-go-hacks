@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dbus = "0.9"
-dbus-crossroads = "0.5"
 evdev = "0.13"
 libc = "0.2"
 udev = "0.9"

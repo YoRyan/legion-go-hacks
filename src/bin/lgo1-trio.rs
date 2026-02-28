@@ -4,8 +4,6 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::Duration;
 
-use dbus::arg as dbus_arg;
-use dbus_crossroads::Crossroads;
 use evdev::{AttributeSet, BusType, EventType, InputEvent, KeyCode, SwitchCode};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -38,14 +36,11 @@ impl KeyboardStatus {
     }
 }
 
-const DBUS_OBJECT_PATH: &str = "/com/youngryan/LGo1Trio";
-const DBUS_INTERFACE: &str = "com.youngryan.LGo1Trio";
 const FORWARD_KEYS: [KeyCode; 2] = [KeyCode::KEY_VOLUMEDOWN, KeyCode::KEY_VOLUMEUP];
 
 fn main() {
     let atomic_status = Arc::new(AtomicU32::new(KeyboardStatus::None as u32));
     let atomic_status2 = atomic_status.clone();
-    let atomic_status3 = atomic_status.clone();
 
     // (We pass references and Arc clones make the functions callable multiple
     // times.)
@@ -63,10 +58,9 @@ fn main() {
     spawn_loop("read_udev_add_remove", move || {
         read_udev_add_remove(&udev_s)
     });
-    spawn_loop("read_keyboard_status", move || {
+    let _ = spawn_loop("read_keyboard_status", move || {
         read_keyboard_status(&udev_r, &virtual_s2, atomic_status.clone())
-    });
-    let _ = spawn_loop("run_dbus", move || run_dbus(atomic_status3.clone())).join();
+    }).join();
 
     unreachable!();
 }
@@ -228,71 +222,4 @@ fn keyboard_status() -> KeyboardStatus {
         }
     }
     KeyboardStatus::None
-}
-
-fn run_dbus(atomic_status: Arc<AtomicU32>) -> Result<()> {
-    use dbus::channel::{MatchingReceiver, Sender};
-
-    let mut cr = make_crossroads(atomic_status.clone());
-    let conn = dbus::blocking::LocalConnection::new_system()?;
-    conn.request_name("com.youngryan.LGo1Trio", false, true, false)?;
-    conn.start_receive(
-        dbus::message::MatchRule::new_method_call(),
-        Box::new(move |msg, conn| {
-            cr.handle_message(msg, conn).unwrap();
-            true
-        }),
-    );
-
-    let mut last_status: Option<KeyboardStatus> = Option::None;
-    loop {
-        conn.process(Duration::from_millis(100))?;
-
-        let status = KeyboardStatus::load_atomic(&atomic_status);
-        if last_status.is_none_or(|s| s != status) {
-            let mut changed_props = dbus_arg::PropMap::new();
-            changed_props.insert(
-                "KeyboardStatus".to_owned(),
-                dbus_arg::Variant(Box::new(status as u32)),
-            );
-            changed_props.insert(
-                "TabletMode".to_owned(),
-                dbus_arg::Variant(Box::new(status.is_tablet_mode())),
-            );
-            conn.send(
-                dbus::Message::signal(
-                    &DBUS_OBJECT_PATH.into(),
-                    &"org.freedesktop.DBus.Properties".into(),
-                    &"PropertiesChanged".into(),
-                )
-                .append3(
-                    DBUS_INTERFACE,
-                    changed_props,
-                    dbus_arg::Array::new(std::iter::empty::<&str>()),
-                ),
-            )
-            .map_err(|_| "failed to send properties changed message")?;
-
-            last_status = Option::Some(status);
-        }
-    }
-}
-
-fn make_crossroads(atomic_status: Arc<AtomicU32>) -> Crossroads {
-    let mut cr = Crossroads::new();
-    let iface_token = cr.register(
-        DBUS_INTERFACE,
-        |b: &mut dbus_crossroads::IfaceBuilder<Arc<AtomicU32>>| {
-            b.property("KeyboardStatus").get(|_, obj| {
-                let status = KeyboardStatus::load_atomic(obj);
-                Ok(status as u32)
-            });
-            b.property("TabletMode").get(|_, obj| {
-                let tablet_mode = KeyboardStatus::load_atomic(obj).is_tablet_mode();
-                Ok(tablet_mode)
-            });
-        },
-    );
-    cr.insert(DBUS_OBJECT_PATH, &[iface_token], atomic_status);
-    cr
 }
