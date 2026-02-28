@@ -120,11 +120,6 @@ fn run_virtual_device(
         .with_keys(&keys)?
         .with_switches(&switches)?
         .build()?;
-    device.emit(&[evdev::InputEvent::new(
-        EventType::SWITCH.0,
-        SwitchCode::SW_TABLET_MODE.0,
-        1,
-    )])?;
 
     loop {
         let event = event_stream.recv()?;
