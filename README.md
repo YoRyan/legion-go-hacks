@@ -10,7 +10,16 @@ A must for any portable device, yet this is very tricky to accomplish on the LGo
 
 Automatic unlock via TPM is one option, but this requires Secure Boot, which is also very tricky to achieve if you are using anything but the stock, Microsoft-signed Fedora kernel. Secure Boot also [cannot guarantee](https://github.com/fedora-silverblue/silverblue-docs/pull/176) the integrity of the kernel command line, among other things, because that would break the Silverblue boot process.
 
-Currently, I unlock with a keyfile stored on a USB drive attached to my keyring. This can be done keyboard-free on Silverblue with just a couple of additions to kargs.
+Currently, I unlock with a keyfile stored on a USB drive attached to my keyring. This can be done keyboard-free on Silverblue with just a couple of additions to kargs:
+
+```
+rd.luks.options=discard,keyfile-timeout=10s
+rd.luks.uuid=luks-LUKS_UUID rd.luks.key=LUKS_UUID=/keyfile:UUID=USB_UUID
+```
+
+## mt7921e latency spike fix
+
+Add `mt7921e.disable_aspm=1` to kargs. This does not make the crappy Mediatek card perform as well as an Intel one, but (I think) it helps.
 
 ## lgo1-trio.service
 
