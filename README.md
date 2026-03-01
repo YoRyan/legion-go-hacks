@@ -31,7 +31,7 @@ With a Rust toolchain installed, build the daemon with `cargo build`.
 
 ## 61-sensor-local.hwdb
 
-udev [includes](https://github.com/systemd/systemd/blob/main/hwdb.d/60-sensor.hwdb) a rule for the LGo that accounts for Linux running the display in landscape rather than portrait. If we don't undo this, GNOME will constantly be 90-degrees off when it sets the display orientation. This file, to be placed in `/etc/udev/hwdb.d`, changes the `ACCEL_MOUNT_MATRIX` value for this sensor back to the identity matrix.
+udev [includes](https://github.com/systemd/systemd/blob/main/hwdb.d/60-sensor.hwdb) a rule for the LGo that accounts for Linux running the display in landscape rather than portrait. If we don't undo this, GNOME will constantly be 90-degrees off when it sets the display orientation. This file, to be placed in `/etc/udev/hwdb.d`, changes the `ACCEL_MOUNT_MATRIX` value for this sensor back to the identity matrix. To apply the fix, run `systemd-hwdb update && udevadm trigger`.
 
 On Silverblue, it appears you also have to `systemctl mask systemd-hwdb-update.service` to prevent systemd from discarding this change at bootup.
 
