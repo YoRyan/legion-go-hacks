@@ -1,0 +1,11 @@
+[Unit]
+Description=Legion Go tablet mode service
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/lgo1-trio
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=graphical.target

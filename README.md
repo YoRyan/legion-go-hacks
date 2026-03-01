@@ -12,22 +12,24 @@ Automatic unlock via TPM is one option, but this requires Secure Boot, which is 
 
 Currently, I unlock with a keyfile stored on a USB drive attached to my keyring. This can be done keyboard-free on Silverblue with just a couple of additions to kargs.
 
-## Auto-rotate the screen
+## lgo1-trio.service
 
-The LGo uses a display derived from a tablet, and this display's native orientation is left-side-up (relative to the kickstand). Contemporary kernels do a good job keeping the display in landscape mode, but it can still revert to portrait during the boot process and sometimes after a suspend/resume cycle.
+Even though all of the LGo's accelerometers work out of the box, GNOME does not consider the device a convertible, and therefore will not auto-rotate the screen or display the on-screen keyboard. GNOME will only do this if one of the input devices emits the `SW_TABLET_MODE` event. (This is not true of many x86 convertibles, and certainly not of the LGo.)
 
-Sometimes we actually do want to be in portrait mode, too, like when using the device as a handheld tablet.
+This daemon looks for attached keyboards (using evdev) and creates a virtual input device to send the `SW_TABLET_MODE` event if *no* keyboards are attached. It also re-broadcasts volume key presses, because these buttons are considered an "internal keyboard" and are suppressed by libinput when in tablet mode.
 
-All the accelerometers work out of the box, so GNOME has all the information it needs to rotate the screen for us. Unfortunately, GNOME will only do so if there is an onboard input device that emits the `SW_TABLET_MODE` event. This is not true for most x86 convertibles, and certainly not for the LGo.
+With a Rust toolchain installed, build the daemon with `cargo build`.
 
-The solution: Build a fake one. The `tablet-mode` executable creates an evdev input device whose sole purpose is to emit `SW_TABLET_MODE(1)` and force GNOME permanently into tablet mode. This turns on GNOME's auto-rotation feature.
+## 61-sensor-local.hwdb
 
-udev [includes](https://github.com/systemd/systemd/blob/main/hwdb.d/60-sensor.hwdb) a rule for the LGo that appears to swap around the accelerometer's values, to account for Linux running the display in landscape rather than portrait. If we don't undo this, GNOME will constantly be 90-degrees off when it changes the display orientation. This is the purpose of `61-sensor-local.hwdb`: to change `ACCEL_MOUNT_MATRIX` for this sensor back to the identity matrix.
+udev [includes](https://github.com/systemd/systemd/blob/main/hwdb.d/60-sensor.hwdb) a rule for the LGo that accounts for Linux running the display in landscape rather than portrait. If we don't undo this, GNOME will constantly be 90-degrees off when it sets the display orientation. This file, to be placed in `/etc/udev/hwdb.d`, changes the `ACCEL_MOUNT_MATRIX` value for this sensor back to the identity matrix.
 
-## Show the on-screen keyboard
+On Silverblue, it appears you also have to `systemctl mask systemd-hwdb-update.service` to prevent systemd from discarding this change at bootup.
 
-If we enable tablet mode,  as above, we also gain access to GNOME's on-screen keyboard, making the LGo usable without any kind of physical keyboard.
+## mutter-49.4-dont-reset-panel-rotation.patch
 
-Unfortunately, if you do happen to be using a physical keyboard, the OSK appears whenever you tap on an input field or when you swipe up from the bottom edge of the screen. This is slightly annoying, but I personally don't consider it a dealbreaker. In an earlier version of `tablet-mode`, I counted the number of attached keyboards via libinput and attempted to switch tablet mode on/off based on whether an external keyboard was attached. This solution did not work because when leaving tablet mode, Mutter [automatically switches](https://gitlab.gnome.org/GNOME/mutter/-/blob/main/src/backends/meta-monitor-manager.c) the display back to its "normal" orientation. And on the LGo, that orientation... is portrait, not landscape.
+A recent [commit](https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/4119/diffs?commit_id=e37021007de67e9358c9429fdf4f1f022a9c3ae3) changed Mutter to rotate the display to its native orientation when leaving tablet mode. This is a bad idea for a device that has a native portrait display, like the LGo, because it causes Mutter to rotate the display sideways. This patch deletes the code that causes the rotation; it is current for the version of Mutter shipped with Fedora 43. You can [build](https://blog.aloni.org/posts/how-to-easily-patch-fedora-packages/) your own custom package using fedpkg, and on Silverblue, you can install the resulting packages with something like:
 
-One potential solution is to block the OSK with an extension when an external keyboard is attached. This [appears to be possible](https://github.com/alexcanepa/cariboublocker/tree/master/49) on current versions of GNOME.
+```
+# rpm-ostree override replace ./mutter-49.4-1.fc43.yoryan.x86_64.rpm ./mutter-common-49.4-1.fc43.yoryan.noarch.rpm
+```
