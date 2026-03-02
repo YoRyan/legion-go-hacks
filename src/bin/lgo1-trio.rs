@@ -4,7 +4,7 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::Duration;
 
-use evdev::{AttributeSet, BusType, EventType, InputEvent, KeyCode, SwitchCode};
+use evdev::{AttributeSet, BusType, InputEvent, KeyCode, SwitchCode};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -60,7 +60,8 @@ fn main() {
     });
     let _ = spawn_loop("read_keyboard_status", move || {
         read_keyboard_status(&udev_r, &virtual_s2, atomic_status.clone())
-    }).join();
+    })
+    .join();
 
     unreachable!();
 }
@@ -97,7 +98,11 @@ fn read_suppressed_keyboard(consumer: &mpsc::Sender<InputEvent>) -> Result<()> {
         for event in internal_keyboard.fetch_events()? {
             let code = event.code();
             if forward_codes.contains(&code) {
-                consumer.send(InputEvent::new(EventType::KEY.0, code, event.value()))?;
+                consumer.send(InputEvent::new(
+                    evdev::EventType::KEY.0,
+                    code,
+                    event.value(),
+                ))?;
             }
         }
     }
@@ -172,7 +177,7 @@ fn read_keyboard_status(
     loop {
         let status = keyboard_status();
         virtual_consumer.send(InputEvent::new(
-            EventType::SWITCH.0,
+            evdev::EventType::SWITCH.0,
             SwitchCode::SW_TABLET_MODE.0,
             status.is_tablet_mode() as i32,
         ))?;
