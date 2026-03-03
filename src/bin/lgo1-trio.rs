@@ -48,18 +48,16 @@ fn main() {
     let (virtual_s, virtual_r) = mpsc::channel::<InputEvent>();
     let virtual_s2 = virtual_s.clone();
     spawn_loop("read_suppressed_keyboard", move || {
-        read_suppressed_keyboard(&virtual_s)
+        read_suppressed_keyboard(&virtual_s, atomic_status.clone())
     });
-    spawn_loop("run_virtual_device", move || {
-        run_virtual_device(&virtual_r, atomic_status2.clone())
-    });
+    spawn_loop("run_virtual_device", move || run_virtual_device(&virtual_r));
 
     let (udev_s, udev_r) = mpsc::sync_channel::<()>(0);
     spawn_loop("read_udev_add_remove", move || {
         read_udev_add_remove(&udev_s)
     });
     let _ = spawn_loop("read_keyboard_status", move || {
-        read_keyboard_status(&udev_r, &virtual_s2, atomic_status.clone())
+        read_keyboard_status(&udev_r, &virtual_s2, atomic_status2.clone())
     })
     .join();
 
@@ -83,7 +81,10 @@ where
     })
 }
 
-fn read_suppressed_keyboard(consumer: &mpsc::Sender<InputEvent>) -> Result<()> {
+fn read_suppressed_keyboard(
+    consumer: &mpsc::Sender<InputEvent>,
+    atomic_status: Arc<AtomicU32>,
+) -> Result<()> {
     let forward_codes: HashSet<u16> = FORWARD_KEYS.iter().map(|k| k.0).collect();
 
     let mut internal_keyboard = evdev::enumerate()
@@ -97,7 +98,9 @@ fn read_suppressed_keyboard(consumer: &mpsc::Sender<InputEvent>) -> Result<()> {
     loop {
         for event in internal_keyboard.fetch_events()? {
             let code = event.code();
-            if forward_codes.contains(&code) {
+            if forward_codes.contains(&code)
+                && KeyboardStatus::load_atomic(&atomic_status).is_tablet_mode()
+            {
                 consumer.send(InputEvent::new(
                     evdev::EventType::KEY.0,
                     code,
@@ -108,10 +111,7 @@ fn read_suppressed_keyboard(consumer: &mpsc::Sender<InputEvent>) -> Result<()> {
     }
 }
 
-fn run_virtual_device(
-    event_stream: &mpsc::Receiver<InputEvent>,
-    atomic_status: Arc<AtomicU32>,
-) -> Result<()> {
+fn run_virtual_device(event_stream: &mpsc::Receiver<InputEvent>) -> Result<()> {
     let keys = AttributeSet::<KeyCode>::from_iter(FORWARD_KEYS.iter());
     let switches = AttributeSet::<SwitchCode>::from_iter([SwitchCode::SW_TABLET_MODE]);
     let mut device = evdev::uinput::VirtualDevice::builder()?
@@ -122,9 +122,7 @@ fn run_virtual_device(
 
     loop {
         let event = event_stream.recv()?;
-        if KeyboardStatus::load_atomic(&atomic_status).is_tablet_mode() {
-            device.emit(&[event])?;
-        }
+        device.emit(&[event])?;
     }
 }
 
