@@ -217,8 +217,7 @@ fn keyboard_status() -> KeyboardStatus {
         let looks_like_keyboard = d.supported_keys().map_or(false, |attr_set| {
             TEST_KEYS.iter().all(|&k| attr_set.contains(k))
         });
-        let is_blacklisted = internal_blacklist.contains(&id_t);
-        if looks_like_keyboard && !is_blacklisted {
+        if looks_like_keyboard && internal_blacklist.contains(&id_t) {
             return KeyboardStatus::AnyExternal;
         }
     }
