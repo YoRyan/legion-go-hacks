@@ -1,11 +1,9 @@
 use std::collections::{HashMap, HashSet};
-use std::env;
-use std::fs;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use evdev::{AttributeSet, BusType, InputEvent, SwitchCode};
+use evdev::{BusType, InputEvent, SwitchCode};
 use serde::Deserialize;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -98,12 +96,12 @@ fn main() {
 }
 
 fn read_config() -> Config {
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = std::env::args().collect();
     let path = match args.len() {
         2 => &args[1],
         _ => panic!("Arguments: {} <path to config file>", args[0]),
     };
-    let str = fs::read_to_string(path).unwrap();
+    let str = std::fs::read_to_string(path).unwrap();
     toml::from_str(&str).unwrap()
 }
 
@@ -125,7 +123,7 @@ where
 }
 
 fn run_virtual_device(event_stream: &mpsc::Receiver<InputEvent>) -> Result<()> {
-    let switches = AttributeSet::<SwitchCode>::from_iter([SwitchCode::SW_TABLET_MODE]);
+    let switches = evdev::AttributeSet::<SwitchCode>::from_iter([SwitchCode::SW_TABLET_MODE]);
     let mut device: evdev::uinput::VirtualDevice = evdev::uinput::VirtualDevice::builder()?
         .name("tablet-switch virtual input device")
         .input_id(evdev::InputId::new(
