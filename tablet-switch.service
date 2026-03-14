@@ -1,0 +1,11 @@
+[Unit]
+Description=Virtual tablet mode service
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/tablet-switch /etc/tablet-switch.conf
+Restart=always
+RestartSec=10s
+
+[Install]
+WantedBy=graphical.target
