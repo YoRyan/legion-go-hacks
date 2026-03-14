@@ -68,11 +68,11 @@ impl Rule {
             && self.version.is_none_or(|v| v == id.version())
             && self
                 .with_keys
-                .clone()
+                .as_ref()
                 .is_none_or(|test_keys| test_keys.iter().all(|tk| device_keys.contains(tk)))
             && self
                 .without_keys
-                .clone()
+                .as_ref()
                 .is_none_or(|test_keys| test_keys.iter().all(|tk| !device_keys.contains(tk)))
     }
 }
