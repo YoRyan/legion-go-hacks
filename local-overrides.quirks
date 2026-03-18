@@ -1,3 +1,7 @@
+# Prevent these input devices from being disabled by libinput when entering
+# tablet mode.
+# https://wayland.freedesktop.org/libinput/doc/latest/device-quirks.html#list-of-currently-available-device-quirks
+
 [Volume Keys]
 MatchBus=ps2
 MatchVendor=0x0001
