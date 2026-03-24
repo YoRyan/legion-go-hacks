@@ -49,10 +49,10 @@ On Silverblue, it appears you also have to `systemctl mask systemd-hwdb-update.s
 
 Entering tablet mode causes libinput to suppress all keyboard and touchpad events, in line with the authors' assumption that any device with a tablet mode switch would be a reverse-folding convertible. With this file placed in `/etc/libinput`, we apply the `ModelTabletModeNoSuspend` [quirk](https://wayland.freedesktop.org/libinput/doc/latest/device-quirks.html) so that libinput does not suppress the side volume keys or the righthand controller's mouse controls, which are considered by libinput to be a "keyboard" and "touchpad."
 
-## mutter-49.4-dont-reset-panel-rotation.patch
+## mutter-49.5-dont-reset-panel-rotation.patch
 
 A recent [commit](https://gitlab.gnome.org/GNOME/mutter/-/merge_requests/4119/diffs?commit_id=e37021007de67e9358c9429fdf4f1f022a9c3ae3) changed Mutter to rotate the display to its native orientation when leaving tablet mode. This is a bad idea for a device that has a native portrait display, like the LGo, because it causes Mutter to rotate the display sideways. This patch deletes the code that causes the rotation; it is current for the version of Mutter shipped with Fedora 43. You can [build](https://blog.aloni.org/posts/how-to-easily-patch-fedora-packages/) your own custom package using fedpkg, and on Silverblue, you can install the resulting packages with something like:
 
 ```
-# rpm-ostree override replace ./mutter-49.4-1.fc43.yoryan.x86_64.rpm ./mutter-common-49.4-1.fc43.yoryan.noarch.rpm
+# rpm-ostree override replace ./mutter-49.5-1.fc43.yoryan.x86_64.rpm ./mutter-common-49.5-1.fc43.yoryan.noarch.rpm
 ```
