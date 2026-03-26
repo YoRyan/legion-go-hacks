@@ -17,9 +17,9 @@ rd.luks.options=discard,keyfile-timeout=10s
 rd.luks.uuid=luks-LUKS_UUID rd.luks.key=LUKS_UUID=/keyfile:UUID=USB_UUID
 ```
 
-## mt7921e latency spike fix
+## MT7922 latency spike fix
 
-Add `mt7921e.disable_aspm=1` to kargs. This does not make the crappy Mediatek card perform as well as an Intel one, but (I think) it helps.
+The onboard Mediatek Wi-Fi has awful performance out of the box. [Disable](https://gist.github.com/jcberthon/ea8cfe278998968ba7c5a95344bc8b55) the power-saving feature to make it usable again.
 
 ## tablet-switch.service
 
