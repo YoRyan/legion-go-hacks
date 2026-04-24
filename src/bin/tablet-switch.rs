@@ -115,9 +115,8 @@ where
 {
     thread::spawn(move || {
         loop {
-            match f() {
-                Ok(_) => {}
-                Err(err) => eprintln!("Error in {}: {}", name, err),
+            if let Err(err) = f() {
+                eprintln!("Error in {}: {}", name, err);
             }
             thread::sleep(Duration::from_secs(10));
         }
@@ -202,19 +201,12 @@ fn set_tablet_switch(
         }
 
         // Wait for an update, but also force a recheck every now and then.
-        match udev_add_remove.recv_timeout(Duration::from_secs(120)) {
-            Err(mpsc::RecvTimeoutError::Timeout) => {}
-            _ => {
-                // Wait for all events to come in, and then impose a short delay. This
-                // accounts for the time the kernel needs to add and remove devices.
-                loop {
-                    match udev_add_remove.recv_timeout(Duration::from_millis(1000)) {
-                        Err(mpsc::RecvTimeoutError::Timeout) => break,
-                        _ => continue,
-                    }
-                }
-            }
-        }
+        let Ok(_) = udev_add_remove.recv_timeout(Duration::from_secs(120)) else {
+            continue;
+        };
+        // Wait for all events to come in, and then impose a short delay. This
+        // accounts for the time the kernel needs to add and remove devices.
+        while let Ok(_) = udev_add_remove.recv_timeout(Duration::from_millis(1000)) {}
     }
 }
 
