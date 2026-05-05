@@ -1,0 +1,92 @@
+From ebcac7d67b35fb3cf8a9dd86a5efe35a741b90cb Mon Sep 17 00:00:00 2001
+From: Ratchanan Srirattanamet <peathot@hotmail.com>
+Date: Sat, 7 Feb 2026 21:26:20 +0000
+Subject: [PATCH] backend: Reset to logical normal orientation rather than crtc
+ normal
+
+`meta_monitor_config_manager_create_for_orientation()` accepts sensor/
+crtc transform rather than logical transform. So, if we want to return
+to normal orientation after orientation is no longer managed, we have to
+take panel rotation into account.
+
+Fixes: e37021007d ("backend: Reset panel rotation when orientation is no longer managed")
+Closes: https://gitlab.gnome.org/GNOME/mutter/-/issues/4509
+Closes: https://gitlab.gnome.org/GNOME/mutter/-/issues/4204
+---
+ src/backends/meta-monitor-manager.c   | 11 ++++++++---
+ src/tests/monitor-orientation-tests.c |  6 +++++-
+ 2 files changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/src/backends/meta-monitor-manager.c b/src/backends/meta-monitor-manager.c
+index b71366d25c1..4b16b8ba91b 100644
+--- a/src/backends/meta-monitor-manager.c
++++ b/src/backends/meta-monitor-manager.c
+@@ -1098,17 +1098,19 @@ update_panel_orientation_managed (MetaMonitorManager *manager)
+   MetaOrientationManager *orientation_manager;
+   ClutterBackend *clutter_backend;
+   ClutterSeat *seat;
++  MetaMonitor *builtin_monitor;
+   gboolean panel_orientation_managed;
+ 
+   clutter_backend = meta_backend_get_clutter_backend (manager->backend);
+   seat = clutter_backend_get_default_seat (clutter_backend);
+ 
+   orientation_manager = meta_backend_get_orientation_manager (manager->backend);
++  builtin_monitor = meta_monitor_manager_get_builtin_monitor (manager);
+ 
+   panel_orientation_managed =
+     (clutter_seat_get_touch_mode (seat) &&
+      meta_orientation_manager_has_accelerometer (orientation_manager) &&
+-     meta_monitor_manager_get_builtin_monitor (manager));
++     builtin_monitor);
+ 
+   if (manager->panel_orientation_managed == panel_orientation_managed)
+     return;
+@@ -1139,13 +1141,16 @@ update_panel_orientation_managed (MetaMonitorManager *manager)
+       /* Rotate back to normal transform when orientation goes unmanaged */
+       if (current_config)
+         {
++          MtkMonitorTransform transform = MTK_MONITOR_TRANSFORM_NORMAL;
+           g_autoptr (MetaMonitorsConfig) config = NULL;
+           g_autoptr (GError) error = NULL;
+ 
++          if (builtin_monitor)
++            transform = meta_monitor_logical_to_crtc_transform (builtin_monitor, transform);
++
+           config =
+             meta_monitor_config_manager_create_for_orientation (manager->config_manager,
+-                                                                current_config,
+-                                                                MTK_MONITOR_TRANSFORM_NORMAL);
++                                                                current_config, transform);
+ 
+           if (config)
+             {
+diff --git a/src/tests/monitor-orientation-tests.c b/src/tests/monitor-orientation-tests.c
+index 6ba0412b9a0..663fc0d5fa1 100644
+--- a/src/tests/monitor-orientation-tests.c
++++ b/src/tests/monitor-orientation-tests.c
+@@ -1391,6 +1391,9 @@ meta_test_monitor_orientation_changes_for_transformed_panel (void)
+                                         touch_device);
+   g_clear_object (&touch_device);
+ 
++  g_set_object (&initial_config,
++                meta_monitor_config_manager_get_current (config_manager));
++
+   meta_sensors_proxy_mock_wait_accelerometer_claimed (orientation_mock, FALSE);
+ 
+   for (i = META_N_ORIENTATIONS - 1; i > META_ORIENTATION_UNDEFINED; i--)
+@@ -1401,9 +1404,10 @@ meta_test_monitor_orientation_changes_for_transformed_panel (void)
+       n_monitors_changed = 0;
+       meta_sensors_proxy_mock_set_orientation (orientation_mock, i);
+ 
++      /* Panel rotation means the logical normal orientation is left-up. */
+       META_TEST_LOG_CALL ("Checking configuration per orientation",
+                           check_monitor_configuration_per_orientation (
+-                            &test_case, 0, META_ORIENTATION_NORMAL,
++                            &test_case, 0, META_ORIENTATION_LEFT_UP,
+                             1024, 768));
+ 
+       current = meta_monitor_config_manager_get_current (config_manager);
+-- 
+GitLab
+
